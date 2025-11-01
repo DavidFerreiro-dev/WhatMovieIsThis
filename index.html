@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What Movie is This? 🎥</title>
+    
+    <link rel="icon" type="image/png" href="icon.png">
+
+    <style>
+        /* --- VARIABLES NEON Y ADAPTABILIDAD --- */
+        :root {
+            --neon-blue: #00ffff;
+            --neon-pink: #ff00ff;
+            --dark-bg: #0d0d1e;
+            --medium-bg: #1c1c3a;
+            --text-color: #e0f7fa;
+            --reveal-color: #ffcc00; 
+            --input-highlight: #008888;
+        }
+
+        /* --- ESTILOS BASE (MÓVIL PRIMERO) --- */
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--medium-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px var(--neon-blue);
+            width: 100%;
+            max-width: 900px;
+            border: 2px solid var(--neon-blue);
+            margin: 20px auto; 
+        }
+
+        h1 {
+            color: var(--neon-pink);
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px var(--neon-pink);
+            font-size: 1.8em;
+        }
+        
+        /* --- PANTALLA DE CARGA COMPLETA --- */
+        #full-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--dark-bg);
+            color: var(--neon-blue);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2em;
+            z-index: 9999;
+            transition: opacity 1s ease-out, visibility 1s;
+            opacity: 1;
+            visibility: visible;
+            text-align: center;
+        }
+
+        #full-loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #loader-text {
+            margin-top: 20px;
+            font-size: 0.5em;
+            color: var(--text-color);
+            text-shadow: none;
+        }
+
+        .loader-spinner {
+            border: 8px solid rgba(255, 255, 255, 0.2);
+            border-top: 8px solid var(--neon-pink);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- CONTENIDOS ESPECÍFICOS DEL JUEGO --- */
+        .header-controls {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            border: 1px solid var(--neon-blue);
+        }
+
+        .score-board {
+            font-size: 0.9em;
+            color: var(--neon-blue);
+            text-shadow: 0 0 4px var(--neon-blue);
+        }
+
+        .score-item {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .clue-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+            border: 1px dashed var(--neon-pink);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .clue-section {
+            padding: 0;
+            flex: 1;
+        }
+
+        .clue-info h3 {
+            color: var(--neon-pink);
+            text-shadow: 0 0 4px var(--neon-pink);
+            border-bottom: 1px solid var(--neon-pink);
+            padding-bottom: 5px;
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
+
+        .details-list div {
+            margin-bottom: 5px;
+        }
+
+        .hidden-clue {
+            opacity: 0;
+            height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .visible-clue {
+            opacity: 1;
+            height: auto;
+            color: var(--reveal-color);
+            font-weight: bold;
+        }
+
+        #poster-display {
+            text-align: center;
+            min-height: 250px;
+            order: 4;
+            display: none; 
+        }
+        
+        #poster-image {
+            max-width: 150px;
+            height: auto;
+            border-radius: 5px;
+            margin: 15px 0;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            border: 3px solid var(--neon-blue);
+        }
+
+        .guess-section {
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative; 
+        }
+        
+        #guess-input {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            margin: 15px 0 5px 0;
+            border: 2px solid var(--neon-blue);
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            box-shadow: 0 0 5px var(--neon-blue);
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 1em;
+            outline: none;
+        }
+
+        #suggestions-container {
+            position: absolute;
+            z-index: 10;
+            width: 80%;
+            max-width: 400px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--medium-bg);
+            border: 1px solid var(--input-highlight);
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        .suggestion-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .suggestion-item:hover {
+            background-color: var(--input-highlight);
+        }
+
+        #attempts-display {
+            color: var(--reveal-color);
+            margin-top: 10px;
+            text-shadow: 0 0 3px var(--reveal-color);
+        }
+
+        @media (min-width: 768px) {
+            h1 { font-size: 2.5em; }
+            .score-board { font-size: 1.3em; }
+
+            .clue-layout {
+                flex-direction: row;
+                padding: 20px;
+            }
+
+            .clue-section {
+                padding: 10px;
+            }
+            
+            .clue-left {
+                border-right: 1px solid rgba(255, 0, 255, 0.3);
+                flex: 1.5;
+            }
+
+            .clue-right {
+                flex: 1;
+                border-right: 1px solid rgba(255, 0, 255, 0.3);
+            }
+
+            #poster-display { 
+                flex: 1;
+                order: 3;
+                display: block; 
+                border-left: 1px solid rgba(255, 0, 255, 0.3);
+            }
+            
+            #poster-image {
+                max-width: 180px;
+            }
+        }
+
+        .neon-button {
+            padding: 12px 20px;
+            background-color: transparent;
+            color: var(--neon-blue);
+            border: 2px solid var(--neon-blue);
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+            margin: 5px;
+        }
+        
+        .skip-button {
+            color: #ff69b4; 
+            border-color: #ff69b4;
+            box-shadow: 0 0 5px #ff69b4;
+            text-shadow: 0 0 5px #ff69b4;
+        }
+
+        .neon-button:hover:not(:disabled) {
+            background-color: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .neon-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .result-feedback {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        .result-feedback.correct { border: 2px solid #00ff00; color: #00ff00; }
+        .result-feedback.incorrect { border: 2px solid #ff0000; color: #ff0000; }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        #continue-button {
+            background-color: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+            border-color: #00ff00;
+        }
+
+        #loading {
+            text-align: center;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+            padding: 15px;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="full-loader">
+        <div class="loader-spinner"></div>
+        <h2 style="color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink);">CARGANDO JUEGO...</h2>
+        <div id="loader-text">Iniciando y precargando títulos.</div>
+    </div>
+    
+    <audio id="background-music" src="background.mp3" autoplay loop style="display: none;"></audio>
+    <audio id="correct-sound" src="correct.mp3" style="display: none;"></audio>
+    <audio id="incorrect-sound" src="incorrect.mp3" style="display: none;"></audio>
+
+
+    <div class="container" style="display: none;"> <h1>WHAT MOVIE IS THIS? 🎥 (PROGRESIVA)</h1>
+
+        <div class="header-controls">
+            <div class="score-board">
+                <span class="score-item">Racha Actual: <span id="current-score">0</span></span>
+                <span class="score-item">Mejor Racha: <span id="max-score">0</span></span>
+            </div>
+            <button id="restart-button" class="neon-button">💥 REINICIAR</button>
+        </div>
+        
+        <div class="clue-layout">
+            
+            <div class="clue-section clue-left clue-info" style="order: 1;">
+                <h3>Sinopsis:</h3>
+                <div id="loading" style="display: none;"></div> 
+                <div id="movie-clues" style="display: none;">
+                    <p id="synopsis"></p>
+                </div>
+            </div>
+
+            <div class="clue-section clue-right clue-info" style="order: 2;">
+                <h3>Detalles:</h3>
+                <div class="details-list">
+                    <div id="release-clue" class="hidden-clue"><strong>Estreno:</strong> <span id="release-date">????</span></div>
+                    <div id="director-clue" class="hidden-clue"><strong>Director:</strong> <span id="director">????</span></div>
+                    <div id="cast-clue" class="hidden-clue"><strong>Reparto:</strong> <span id="cast">????</span></div>
+                </div>
+            </div>
+            
+            <div id="poster-display" style="order: 3;">
+                <h3>Póster Final</h3>
+                <img id="poster-image" src="" alt="Poster de la película">
+            </div>
+        </div>
+
+        <div class="guess-section">
+            <div id="attempts-display">Intentos restantes: 3</div>
+            <input type="text" id="guess-input" placeholder="Escribe el título de la película..." autocomplete="off"> 
+            <div id="suggestions-container"></div>
+            
+            <button id="skip-button" class="neon-button skip-button">⏭️ SALTAR PISTA</button>
+            
+            <div id="result-feedback" class="result-feedback">
+                Adivina la película o salta para más pistas.
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button id="continue-button" class="neon-button" style="display: none;">CONTINUAR →</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN DE TMDB ---
+        const TMDB_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5MWE2Yzk5YWVlMjA5MTc3ODY2NjZjMzhhODczOWU2YSIsIm5iZiI6MTc2MTk0NTEyNS4zOTEsInN1YiI6IjY5MDUyNjI1OTBmMzM4Mzc2MjRjN2NiNiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.ebK9-2YoYZRKBQDHN3uhWMhEyyi77hOUD6ZTSfzWGPI'; 
+        const TMDB_BASE_URL = 'https://api.themoviedb.org/3/';
+        const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w500';
+        
+        // --- VARIABLES DE ESTADO ---
+        let MOVIE_IDS = []; 
+        let MOVIE_CACHE = []; 
+        let ALL_SUGGESTION_TITLES = []; 
+        let currentCorrectMovie = null; 
+        let attemptsLeft = 3;
+        let maxScore = parseInt(localStorage.getItem('maxScore')) || 0;
+        let currentStreak = 0;
+        let titlesCached = false; 
+
+        // --- REFERENCIAS DEL DOM ---
+        const fullLoader = document.getElementById('full-loader');
+        const loaderText = document.getElementById('loader-text');
+        const mainContainer = document.querySelector('.container');
+        const scoreElement = document.getElementById('current-score');
+        const maxScoreElement = document.getElementById('max-score');
+        const cluesDiv = document.getElementById('movie-clues');
+        const loadingDiv = document.getElementById('loading'); 
+        const resultFeedback = document.getElementById('result-feedback');
+        const continueButton = document.getElementById('continue-button');
+        const posterImage = document.getElementById('poster-image');
+        const posterDisplay = document.getElementById('poster-display');
+        const restartButton = document.getElementById('restart-button');
+        const guessInput = document.getElementById('guess-input');
+        const skipButton = document.getElementById('skip-button');
+        const attemptsDisplay = document.getElementById('attempts-display');
+        const suggestionsContainer = document.getElementById('suggestions-container');
+        const music = document.getElementById('background-music');
+        const correctSound = document.getElementById('correct-sound');
+        const incorrectSound = document.getElementById('incorrect-sound');
+        const directorClue = document.getElementById('director-clue');
+        const releaseClue = document.getElementById('release-clue');
+        const castClue = document.getElementById('cast-clue');
+
+
+        // --- FUNCIONES AUXILIARES ---
+
+        function hideLoader() {
+            mainContainer.style.display = 'block';
+            fullLoader.classList.add('hidden');
+        }
+        
+        function formatTMDBDate(dateString) {
+            if (!dateString) return 'N/A';
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        function extractDirector(credits) {
+            const director = credits.crew.find(member => member.job === 'Director');
+            return director ? director.name : 'Desconocido';
+        }
+
+        function extractCast(credits) {
+            const cast = credits.cast.slice(0, 4).map(member => member.name);
+            return cast.join(', ') || 'N/A';
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function normalizeText(text) {
+            return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '');
+        }
+
+        function showClue(clueElement) {
+            clueElement.classList.remove('hidden-clue');
+            clueElement.classList.add('visible-clue');
+        }
+
+        function updateScoreDisplay() {
+            scoreElement.textContent = currentStreak;
+            maxScoreElement.textContent = maxScore;
+        }
+
+        function setMusicVolume() {
+            if (music) {
+                music.volume = 0.1; 
+            }
+        }
+
+        // --- LLAMADAS A LA API TMDB ---
+
+        async function fetchMovieDetails(movieId) {
+            try {
+                const url = `${TMDB_BASE_URL}movie/${movieId}?append_to_response=credits&language=es-ES`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${TMDB_ACCESS_TOKEN}`, 
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+
+                if (data.status_code === 34) return null;
+                
+                const movieData = {
+                    Title: data.title || data.original_title || 'Título Desconocido',
+                    Plot: data.overview || 'Sinopsis no disponible.',
+                    Poster: data.poster_path ? (TMDB_IMAGE_URL + data.poster_path) : null,
+                    Released: formatTMDBDate(data.release_date),
+                    Director: extractDirector(data.credits),
+                    Actors: extractCast(data.credits),
+                    ID: movieId 
+                };
+                
+                return movieData;
+            } catch (error) {
+                console.error(`Error de red o procesamiento para la película ${movieId}:`, error);
+                return null;
+            }
+        }
+
+        // --- LÓGICA DE CARGA DESDE MOVIES.JSON ---
+
+        async function loadMovieIDs() {
+            try {
+                loaderText.textContent = 'Paso 1/3: Cargando lista de IDs desde movies.json...';
+                const response = await fetch('movies.json');
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}. Asegúrate de que 'movies.json' existe.`);
+                }
+                
+                const movieData = await response.json();
+                
+                if (!Array.isArray(movieData) || movieData.length === 0) {
+                    throw new Error('El archivo movies.json está vacío o tiene un formato incorrecto (debe ser un array de IDs de TMDB).');
+                }
+                
+                MOVIE_IDS = movieData.filter(id => typeof id === 'number' && id > 0);
+                
+                if (MOVIE_IDS.length === 0) {
+                     throw new Error('movies.json no contiene IDs válidas de TMDB.');
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Error al cargar movies.json:', error);
+                fullLoader.innerHTML = `<h3 style="color: #ff0000;">¡ERROR CRÍTICO!</h3><p style="font-size: 0.5em; color: #ff0000;">${error.message}</p><p style="font-size: 0.5em;">Asegúrate de tener un archivo 'movies.json' con IDs de TMDB.</p>`;
+                return false;
+            }
+        }
+
+        async function initialLoadAndCacheTitles() {
+            if (titlesCached) return true; 
+            
+            MOVIE_CACHE = [];
+            ALL_SUGGESTION_TITLES = [];
+            const totalIDs = MOVIE_IDS.length;
+            
+            for (let i = 0; i < totalIDs; i++) {
+                const id = MOVIE_IDS[i];
+                loaderText.textContent = `Paso 2/3: Precargando detalles (${i + 1} / ${totalIDs}) de ID ${id}...`;
+                
+                const movieDetails = await fetchMovieDetails(id); 
+                
+                if (movieDetails && movieDetails.Title) {
+                    MOVIE_CACHE.push(movieDetails);
+                    if (!ALL_SUGGESTION_TITLES.includes(movieDetails.Title)) {
+                        ALL_SUGGESTION_TITLES.push(movieDetails.Title);
+                    }
+                }
+            }
+            
+            if (MOVIE_CACHE.length === 0) {
+                fullLoader.innerHTML = `<h3 style="color: #ff0000;">¡ERROR CRÍTICO!</h3><p style="font-size: 0.5em; color: #ff0000;">Ninguna de las IDs de 'movies.json' pudo cargarse. Revisa las IDs de TMDB.</p>`;
+                return false;
+            }
+            
+            MOVIE_CACHE = shuffleArray(MOVIE_CACHE);
+            ALL_SUGGESTION_TITLES = shuffleArray(ALL_SUGGESTION_TITLES);
+
+            titlesCached = true;
+            loaderText.textContent = `Paso 3/3: Precarga finalizada. ${MOVIE_CACHE.length} películas listas para jugar.`;
+            return true;
+        }
+
+        // --- LÓGICA DEL JUEGO PRINCIPAL ---
+
+        async function setupGame() {
+            if (!titlesCached || MOVIE_CACHE.length === 0) {
+                 loadingDiv.style.display = 'block';
+                 loadingDiv.textContent = 'Error: No hay películas en caché.';
+                 return;
+            }
+            
+            // Limpiar estado y pistas
+            [directorClue, releaseClue, castClue].forEach(el => {
+                el.classList.remove('visible-clue');
+                el.classList.add('hidden-clue');
+            });
+
+            if (fullLoader.style.visibility === 'hidden') {
+                 loadingDiv.style.display = 'block';
+                 loadingDiv.textContent = 'Cargando siguiente película...';
+            }
+
+            cluesDiv.style.display = 'none';
+            resultFeedback.textContent = 'Adivina la película o salta para más pistas.';
+            resultFeedback.className = 'result-feedback';
+            continueButton.style.display = 'none';
+            posterImage.style.display = 'none';
+            posterDisplay.style.display = 'none'; 
+            guessInput.value = '';
+            guessInput.disabled = false;
+            skipButton.disabled = false;
+            attemptsLeft = 3;
+            attemptsDisplay.textContent = `Intentos restantes: ${attemptsLeft}`;
+            suggestionsContainer.innerHTML = '';
+            
+            
+            // Seleccionar y rotar la película de la caché
+            currentCorrectMovie = MOVIE_CACHE.shift(); 
+            MOVIE_CACHE.push(currentCorrectMovie); 
+
+            if (fullLoader.style.visibility !== 'hidden') {
+                hideLoader();
+            }
+
+            // Mostrar la primera pista
+            loadingDiv.style.display = 'none'; 
+            document.getElementById('synopsis').textContent = currentCorrectMovie.Plot;
+            document.getElementById('director').textContent = currentCorrectMovie.Director;
+            document.getElementById('release-date').textContent = currentCorrectMovie.Released;
+            document.getElementById('cast').textContent = currentCorrectMovie.Actors;
+
+            cluesDiv.style.display = 'block';
+        }
+
+        function skipClue() {
+            if (!currentCorrectMovie || attemptsLeft <= 0 || skipButton.disabled) return;
+            if (attemptsLeft > 1) {
+                revealClue();
+            } else {
+                endGame(false); 
+            }
+        }
+
+        function revealClue() {
+            attemptsLeft--;
+            attemptsDisplay.textContent = `Intentos restantes: ${attemptsLeft}`;
+            resultFeedback.className = 'result-feedback incorrect';
+            incorrectSound.play();
+            suggestionsContainer.innerHTML = ''; 
+
+            if (attemptsLeft === 2) {
+                showClue(directorClue);
+                resultFeedback.innerHTML = '❌ Incorrecto / Pista Saltada. Pista revelada: **Director**.';
+            } else if (attemptsLeft === 1) {
+                showClue(castClue);
+                resultFeedback.innerHTML = '❌ Incorrecto / Pista Saltada. Pista revelada: **Reparto**.';
+            } else if (attemptsLeft === 0) {
+                endGame(false);
+            }
+        }
+        
+        function endGame(isCorrect) {
+            guessInput.disabled = true;
+            skipButton.disabled = true;
+            continueButton.style.display = 'block';
+            suggestionsContainer.innerHTML = ''; 
+
+            showClue(directorClue);
+            showClue(castClue);
+            showClue(releaseClue); 
+
+            if (currentCorrectMovie.Poster) {
+                posterImage.src = currentCorrectMovie.Poster;
+                posterImage.style.display = 'block';
+                posterDisplay.style.display = 'block';
+            }
+
+            if (isCorrect) {
+                correctSound.play();
+                currentStreak++;
+                if (currentStreak > maxScore) {
+                    maxScore = currentStreak;
+                    localStorage.setItem('maxScore', maxScore);
+                }
+                resultFeedback.className = 'result-feedback correct';
+                resultFeedback.innerHTML = `<h3>✅ ¡CORRECTO!</h3><p>¡Has adivinado **${currentCorrectMovie.Title}**! Racha actual: ${currentStreak}.</p>`;
+            } else {
+                incorrectSound.play();
+                currentStreak = 0;
+                resultFeedback.className = 'result-feedback incorrect';
+                resultFeedback.innerHTML = `<h3>❌ ¡FIN DEL JUEGO!</h3><p>La película correcta era: **${currentCorrectMovie.Title}**.</p>`;
+            }
+
+            updateScoreDisplay();
+        }
+
+        function checkGuess(guess) {
+            if (!currentCorrectMovie || attemptsLeft <= 0 || guessInput.disabled) return;
+            const normalizedGuess = normalizeText(guess);
+            const normalizedCorrect = normalizeText(currentCorrectMovie.Title);
+
+            if (normalizedGuess === normalizedCorrect) {
+                endGame(true);
+            } else {
+                if (attemptsLeft > 1) {
+                    revealClue();
+                } else {
+                    endGame(false);
+                }
+            }
+        }
+
+        function showSuggestions() {
+            if (guessInput.disabled || !currentCorrectMovie) return;
+            
+            const input = guessInput.value.trim().toLowerCase();
+            suggestionsContainer.innerHTML = '';
+
+            const searchTitlesSet = new Set(ALL_SUGGESTION_TITLES);
+            
+            if (currentCorrectMovie && currentCorrectMovie.Title) {
+                 searchTitlesSet.add(currentCorrectMovie.Title);
+            }
+
+            const searchTitlesArray = Array.from(searchTitlesSet);
+            
+            let filteredTitles;
+            if (input.length === 0) {
+                filteredTitles = shuffleArray(searchTitlesArray).slice(0, 10);
+            } else {
+                filteredTitles = searchTitlesArray.filter(title => 
+                    title.toLowerCase().includes(input)
+                ).slice(0, 10);
+            }
+
+            if (filteredTitles.length === 0 && input.length > 0) {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.style.cursor = 'default';
+                div.style.color = '#ff0000';
+                div.textContent = `No hay resultados para "${input}".`;
+                suggestionsContainer.appendChild(div);
+                return;
+            }
+
+            filteredTitles.forEach(title => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.textContent = title;
+                div.onclick = () => {
+                    guessInput.value = title;
+                    suggestionsContainer.innerHTML = '';
+                    checkGuess(title);
+                };
+                suggestionsContainer.appendChild(div);
+            });
+        }
+        
+        function resetGame() {
+            currentStreak = 0;
+            updateScoreDisplay();
+            setupGame();
+        }
+
+        // --- LISTENERS E INICIO ---
+
+        document.addEventListener('click', (e) => {
+            if (!guessInput.contains(e.target) && !suggestionsContainer.contains(e.target) && !skipButton.contains(e.target)) {
+                suggestionsContainer.innerHTML = '';
+            }
+        });
+
+        guessInput.addEventListener('input', showSuggestions); 
+        guessInput.addEventListener('focus', showSuggestions); 
+        skipButton.addEventListener('click', skipClue);
+        continueButton.addEventListener('click', setupGame);
+        restartButton.addEventListener('click', resetGame);
+        guessInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !guessInput.disabled) {
+                e.preventDefault(); 
+                suggestionsContainer.innerHTML = ''; 
+                // Al presionar Enter, usa el valor actual del input para adivinar
+                checkGuess(guessInput.value); 
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            setMusicVolume();
+            
+            // 1. Obtener las IDs del archivo movies.json
+            const loadedIDs = await loadMovieIDs();
+            if (!loadedIDs) return;
+            
+            // 2. Cargar TODOS los detalles y títulos a la caché
+            const cached = await initialLoadAndCacheTitles();
+            if (!cached) return;
+
+            // 3. Iniciar el juego
+            await setupGame();
+            
+            updateScoreDisplay();
+        });
+    </script>
+</body>
+</html>
