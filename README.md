@@ -22,3 +22,11 @@ de forma instantánea con todos los títulos disponibles.
 
 
 Las películas son extraídas de TMDB, utilizando su API oficial.
+
+JUEGA AQUI:
+(con música)
+https://deybidd.itch.io/what-movie-is-this
+
+(sin música)
+https://playwhatmovieisthis.netlify.app
+https://davidferreiro-dev.github.io/WhatMovieIsThis/
