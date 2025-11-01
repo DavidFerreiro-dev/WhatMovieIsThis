@@ -342,6 +342,7 @@
     <audio id="background-music" src="background.mp3" autoplay loop style="display: none;"></audio>
     <audio id="correct-sound" src="correct.mp3" style="display: none;"></audio>
     <audio id="incorrect-sound" src="incorrect.mp3" style="display: none;"></audio>
+    <audio id="skip-sound" src="skip.mp3" style="display: none;"></audio> 
 
 
     <div class="container" style="display: none;"> <h1>WHAT MOVIE IS THIS? 🎥 (PROGRESIVA)</h1>
@@ -360,17 +361,13 @@
                 <h3>Sinopsis:</h3>
                 <div id="loading" style="display: none;"></div> 
                 <div id="movie-clues" style="display: none;">
-                    <p id="synopsis"></p>
-                </div>
+                    <p id="synopsis" class="hidden-clue"></p> </div>
             </div>
 
             <div class="clue-section clue-right clue-info" style="order: 2;">
                 <h3>Detalles:</h3>
                 <div class="details-list">
-                    <div id="release-clue" class="hidden-clue"><strong>Estreno:</strong> <span id="release-date">????</span></div>
-                    <div id="director-clue" class="hidden-clue"><strong>Director:</strong> <span id="director">????</span></div>
-                    <div id="cast-clue" class="hidden-clue"><strong>Reparto:</strong> <span id="cast">????</span></div>
-                </div>
+                    <div id="cast-clue" class="hidden-clue"><strong>Reparto:</strong> <span id="cast">????</span></div> <div id="release-clue" class="hidden-clue"><strong>Estreno:</strong> <span id="release-date">????</span></div> <div id="director-clue" class="hidden-clue"><strong>Director:</strong> <span id="director">????</span></div> </div>
             </div>
             
             <div id="poster-display" style="order: 3;">
@@ -380,7 +377,7 @@
         </div>
 
         <div class="guess-section">
-            <div id="attempts-display">Intentos restantes: 3</div>
+            <div id="attempts-display">Intentos restantes: 4</div> 
             <input type="text" id="guess-input" placeholder="Escribe el título de la película..." autocomplete="off"> 
             <div id="suggestions-container"></div>
             
@@ -398,6 +395,7 @@
 
     <script>
         // --- CONFIGURACIÓN DE TMDB ---
+        // DEBES REEMPLAZAR 'YOUR_TMDB_ACCESS_TOKEN' CON TU TOKEN REAL.
         const TMDB_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5MWE2Yzk5YWVlMjA5MTc3ODY2NjZjMzhhODczOWU2YSIsIm5iZiI6MTc2MTk0NTEyNS4zOTEsInN1YiI6IjY5MDUyNjI1OTBmMzM4Mzc2MjRjN2NiNiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.ebK9-2YoYZRKBQDHN3uhWMhEyyi77hOUD6ZTSfzWGPI'; 
         const TMDB_BASE_URL = 'https://api.themoviedb.org/3/';
         const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w500';
@@ -407,7 +405,8 @@
         let MOVIE_CACHE = []; 
         let ALL_SUGGESTION_TITLES = []; 
         let currentCorrectMovie = null; 
-        let attemptsLeft = 3;
+        // 4 intentos iniciales para 4 niveles de pistas
+        let attemptsLeft = 4; 
         let maxScore = parseInt(localStorage.getItem('maxScore')) || 0;
         let currentStreak = 0;
         let titlesCached = false; 
@@ -432,13 +431,36 @@
         const music = document.getElementById('background-music');
         const correctSound = document.getElementById('correct-sound');
         const incorrectSound = document.getElementById('incorrect-sound');
+        const skipSound = document.getElementById('skip-sound'); 
         const directorClue = document.getElementById('director-clue');
         const releaseClue = document.getElementById('release-clue');
         const castClue = document.getElementById('cast-clue');
+        const synopsisClue = document.getElementById('synopsis'); 
 
 
         // --- FUNCIONES AUXILIARES ---
 
+        /**
+         * Función robusta para reproducir un elemento de audio.
+         * Asegura que se detiene, se reinicia y luego se reproduce, 
+         * previniendo problemas de doble reproducción rápida.
+         */
+        function playAudio(audioElement) {
+            if (audioElement) {
+                // 1. Forzar pausa inmediata (¡Clave!)
+                audioElement.pause(); 
+                
+                // 2. Reiniciar el tiempo al inicio
+                audioElement.currentTime = 0;
+                
+                // 3. Intentar reproducir, capturando el error común de promesa rechazada
+                audioElement.play().catch(error => {
+                    // Este error es común al intentar reproducir muy rápido. Lo ignoramos.
+                    // console.warn("Audio playback interrupted or failed:", error);
+                });
+            }
+        }
+        
         function hideLoader() {
             mainContainer.style.display = 'block';
             fullLoader.classList.add('hidden');
@@ -601,7 +623,7 @@
             }
             
             // Limpiar estado y pistas
-            [directorClue, releaseClue, castClue].forEach(el => {
+            [directorClue, releaseClue, castClue, synopsisClue].forEach(el => { 
                 el.classList.remove('visible-clue');
                 el.classList.add('hidden-clue');
             });
@@ -620,7 +642,7 @@
             guessInput.value = '';
             guessInput.disabled = false;
             skipButton.disabled = false;
-            attemptsLeft = 3;
+            attemptsLeft = 4; // Reiniciar a 4 intentos
             attemptsDisplay.textContent = `Intentos restantes: ${attemptsLeft}`;
             suggestionsContainer.innerHTML = '';
             
@@ -633,52 +655,78 @@
                 hideLoader();
             }
 
-            // Mostrar la primera pista
+            // Poner los datos de la nueva película
             loadingDiv.style.display = 'none'; 
             document.getElementById('synopsis').textContent = currentCorrectMovie.Plot;
             document.getElementById('director').textContent = currentCorrectMovie.Director;
             document.getElementById('release-date').textContent = currentCorrectMovie.Released;
             document.getElementById('cast').textContent = currentCorrectMovie.Actors;
 
+            // Mostrar la Pista 1 (Reparto)
+            showClue(castClue); 
+            resultFeedback.innerHTML = 'Pista inicial revelada: **Reparto**. Tienes 4 intentos/saltos restantes.';
+
             cluesDiv.style.display = 'block';
         }
 
         function skipClue() {
-            if (!currentCorrectMovie || attemptsLeft <= 0 || skipButton.disabled) return;
-            if (attemptsLeft > 1) {
-                revealClue();
-            } else {
-                endGame(false); 
-            }
+            if (!currentCorrectMovie || guessInput.disabled) return;
+            
+            // Un salto consume un intento y revela la siguiente pista o termina el juego
+            revealClue(true); 
         }
 
-        function revealClue() {
+        function revealClue(isSkip = false) {
+            
+            // Si ya no quedan intentos (estamos en el último, attemptsLeft = 1)
+            if (attemptsLeft <= 1) {
+                // Último fallo/salto -> Terminar el juego.
+                endGame(false, isSkip); 
+                return;
+            }
+            
             attemptsLeft--;
             attemptsDisplay.textContent = `Intentos restantes: ${attemptsLeft}`;
-            resultFeedback.className = 'result-feedback incorrect';
-            incorrectSound.play();
+            
+            // LÓGICA DE SONIDO: Usar la función robusta de reproducción
+            if (isSkip) {
+                playAudio(skipSound);
+            } else {
+                playAudio(incorrectSound);
+            }
+            
             suggestionsContainer.innerHTML = ''; 
+            
+            const actionText = isSkip ? 'Pista Saltada' : '❌ Incorrecto';
+            resultFeedback.className = 'result-feedback incorrect';
 
-            if (attemptsLeft === 2) {
-                showClue(directorClue);
-                resultFeedback.innerHTML = '❌ Incorrecto / Pista Saltada. Pista revelada: **Director**.';
+
+            if (attemptsLeft === 3) {
+                // attemptsLeft era 4. Ahora 3. Muestra Pista 2 (Estreno).
+                showClue(releaseClue); 
+                resultFeedback.innerHTML = `${actionText}. Pista revelada: **Estreno**.`;
+            } else if (attemptsLeft === 2) {
+                // attemptsLeft era 3. Ahora 2. Muestra Pista 3 (Director).
+                showClue(directorClue); 
+                resultFeedback.innerHTML = `${actionText}. Pista revelada: **Director**.`;
             } else if (attemptsLeft === 1) {
-                showClue(castClue);
-                resultFeedback.innerHTML = '❌ Incorrecto / Pista Saltada. Pista revelada: **Reparto**.';
-            } else if (attemptsLeft === 0) {
-                endGame(false);
+                // attemptsLeft era 2. Ahora 1. Muestra Pista 4 (Sinopsis).
+                showClue(synopsisClue); 
+                resultFeedback.innerHTML = `${actionText}. Pista revelada: **Sinopsis**. ¡Última oportunidad!`;
             }
         }
         
-        function endGame(isCorrect) {
+        function endGame(isCorrect, isSkip = false) { 
             guessInput.disabled = true;
             skipButton.disabled = true;
             continueButton.style.display = 'block';
             suggestionsContainer.innerHTML = ''; 
 
+            // Mostrar TODAS las pistas
+            showClue(castClue); 
+            showClue(releaseClue);
             showClue(directorClue);
-            showClue(castClue);
-            showClue(releaseClue); 
+            showClue(synopsisClue); 
 
             if (currentCorrectMovie.Poster) {
                 posterImage.src = currentCorrectMovie.Poster;
@@ -687,7 +735,7 @@
             }
 
             if (isCorrect) {
-                correctSound.play();
+                playAudio(correctSound); // Usar función robusta
                 currentStreak++;
                 if (currentStreak > maxScore) {
                     maxScore = currentStreak;
@@ -696,28 +744,28 @@
                 resultFeedback.className = 'result-feedback correct';
                 resultFeedback.innerHTML = `<h3>✅ ¡CORRECTO!</h3><p>¡Has adivinado **${currentCorrectMovie.Title}**! Racha actual: ${currentStreak}.</p>`;
             } else {
-                incorrectSound.play();
+                // Si pierde, no se reproduce sonido aquí, ya lo hizo en revealClue/incorrectSound
                 currentStreak = 0;
                 resultFeedback.className = 'result-feedback incorrect';
-                resultFeedback.innerHTML = `<h3>❌ ¡FIN DEL JUEGO!</h3><p>La película correcta era: **${currentCorrectMovie.Title}**.</p>`;
+                
+                const lossReason = isSkip ? "Se acabaron los saltos disponibles y no adivinaste a tiempo." : "Fallaste tu último intento.";
+                
+                resultFeedback.innerHTML = `<h3>❌ ¡FIN DEL JUEGO!</h3><p>La película correcta era: **${currentCorrectMovie.Title}**.</p><p>${lossReason}</p>`;
             }
 
             updateScoreDisplay();
         }
 
         function checkGuess(guess) {
-            if (!currentCorrectMovie || attemptsLeft <= 0 || guessInput.disabled) return;
+            if (!currentCorrectMovie || guessInput.disabled) return;
             const normalizedGuess = normalizeText(guess);
             const normalizedCorrect = normalizeText(currentCorrectMovie.Title);
 
             if (normalizedGuess === normalizedCorrect) {
                 endGame(true);
             } else {
-                if (attemptsLeft > 1) {
-                    revealClue();
-                } else {
-                    endGame(false);
-                }
+                // Un fallo consume un intento y activa la reproducción del sonido "incorrect" en revealClue
+                revealClue(false);
             }
         }
 
